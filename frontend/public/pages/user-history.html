@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User tasks</title>
+    <style media="screen">
+        *,
+        *:before,
+        *:after{
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+        body{
+            background-color: #080710;
+        }
+        h1{
+            color: #ffffff;
+            text-align: center;
+            font-size: 32px;
+            margin-top: 20px;
+        }
+        #task-list{
+            background-color: rgba(255, 255, 255, 0.13);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 40px rgba(8, 7, 16, 0.6);
+            padding: 20px;
+            margin: 20px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        #task-list div{
+            font-family: 'Poppins', sans-serif;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 300;
+            margin-bottom: 10px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-align: right;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        #user-info {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end; 
+            margin-left: auto;
+        }
+        #username {
+            margin-right: 10px;
+            font-weight: 500;
+            color: #ffffff;
+        }
+        #logout-button {
+            background-color: red;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #logout-button:hover {
+            background-color: darkred;
+        }
+        #task-list-container {
+            text-align: center; /* Вирівняйте вміст по центру горизонтально */
+        }
+        #delete-all-tasks {
+            background-color: red;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #delete-all-tasks:hover {
+            background-color: darkred;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div id="user-info">
+            <span id="username">Alex</span>
+            <button id="logout-button">Logout</button>
+        </div>
+    </header>
+    <h1>User tasks</h1>
+    <div id="task-list-container">
+        <div id="task-list">
+            
+        </div>
+        <button id="delete-all-tasks">Delete all</button>
+    </div>
+    <script>
+        function clearUserTasks() {
+            const taskList = document.getElementById('task-list');
+            taskList.innerHTML = ''; // Очистити вміст списку завдань
+        }
+
+        async function displayUserTasks() {
+            const taskList = document.getElementById('task-list');
+            
+            //!!!!!!!!
+            const url = window.location.href; 
+            const urlParams = new URLSearchParams(url.search); 
+            
+            const user_id = '6532548b94a003bf85209cee'
+
+            if (urlParams.has('userId')) {
+                const userId = urlParams.get('userId');
+            } else {
+                console.error('userId не знайдено в URL');
+            }
+
+            const response = await fetch(`/tasks/user/${user_id}`);
+            if (!response.ok) {
+                console.error('Помилка отримання завдань користувача');
+                return;
+            }
+
+            const tasks = await response.json();
+
+            taskList.innerHTML = '';
+
+            tasks.forEach((task) => {
+                const taskItem = document.createElement('div');
+                taskItem.textContent = `Data: ${task.data}\tResult: ${task.answer}`; 
+                taskList.appendChild(taskItem);
+            });
+        }
+
+        displayUserTasks();
+
+        const logoutButton = document.getElementById('logout-button');
+
+        logoutButton.addEventListener('click', async () => {
+            const response = await fetch('/auth/logout', {
+                method: 'POST',
+            });
+            if (response.ok) {
+                try {
+                    const data = await response.json();
+                    if (data.redirect) {
+                        window.location.href = data.redirect;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse response as JSON', e);
+                }
+            }
+        });   
+        
+        const deleteAllTasksButton = document.getElementById('delete-all-tasks');
+        
+        deleteAllTasksButton.addEventListener('click', async () => {
+            //!!!!!!!!
+            const token = req.headers.authorization.split(' ')[1];
+
+            const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+
+            const user_id = payload.UserInfo._id;
+            try {
+                const response = await fetch(`/tasks/user/${user_id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    clearUserTasks();
+                } else {
+                    console.error('Помилка видалення завдань користувача:', response.status, response.statusText);
+                }
+            } catch (error) {
+                console.error('Помилка видалення завдань користувача:', error);
+            }
+        });
+    </script>
+</body>
+</html>

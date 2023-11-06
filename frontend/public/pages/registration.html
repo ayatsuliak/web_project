@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration</title> -->
+    <title>Registration</title>
+ 
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;600&display=swap" rel="stylesheet">
+    <!--Stylesheet-->
+    <style media="screen">
+        *,
+        *:before,
+        *:after{
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+        body{
+            background-color: #080710;
+        }
+        .error-box {
+            color: red;
+        }
+        .background{
+            width: 430px;
+            height: 520px;
+            position: absolute;
+            transform: translate(-50%,-50%);
+            left: 50%;
+            top: 50%;
+        }
+        .background .shape{
+            height: 200px;
+            width: 200px;
+            position: absolute;
+            border-radius: 50%;
+        }
+        .shape:first-child{
+            background: linear-gradient(
+                #1845ad,
+                #23a2f6
+            );
+            left: -80px;
+            top: -80px;
+        }
+        .shape:last-child{
+            background: linear-gradient(
+                to right,
+                #ff512f,
+                #f09819
+            );
+            right: -30px;
+            bottom: -80px;
+        }
+        form{
+            height: 520px;
+            width: 400px;
+            background-color: rgba(255,255,255,0.13);
+            position: absolute;
+            transform: translate(-50%,-50%);
+            top: 50%;
+            left: 50%;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,255,255,0.1);
+            box-shadow: 0 0 40px rgba(8,7,16,0.6);
+            padding: 50px 35px;
+        }
+        form *{
+            font-family: 'Poppins',sans-serif;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            outline: none;
+            border: none;
+        }
+        form h3{
+            font-size: 32px;
+            font-weight: 500;
+            line-height: 42px;
+            text-align: center;
+        }
+
+        label{
+            display: block;
+            margin-top: 30px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        input{
+            display: block;
+            height: 50px;
+            width: 100%;
+            background-color: rgba(255,255,255,0.07);
+            border-radius: 3px;
+            padding: 0 10px;
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: 300;
+        }
+        ::placeholder{
+            color: #e5e5e5;
+        }
+        button{
+            margin-top: 50px;
+            width: 100%;
+            background-color: #ffffff;
+            color: #080710;
+            padding: 15px 0;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .social{
+        margin-top: 30px;
+        display: flex;
+        }
+        .social div{
+        background: red;
+        width: 150px;
+        border-radius: 3px;
+        padding: 5px 10px 10px 5px;
+        background-color: rgba(255,255,255,0.27);
+        color: #eaf0fb;
+        text-align: center;
+        }
+        .social div:hover{
+        background-color: rgba(255,255,255,0.47);
+        }
+        .social .fb{
+        margin-left: 25px;
+        }
+        .social i{
+        margin-right: 4px;
+        }
+        a {
+            display: block; 
+            text-align: center; 
+            margin-top: 20px; 
+            color: #fb4d4d; 
+        }
+        a:hover {
+            color: #886bef; 
+        }
+    </style>
+</head>
+<body>
+    <div class="background">
+        <div class="shape"></div>
+        <div class="shape"></div>
+    </div>
+    <form id="registration-form" action="/auth/register" method="post">
+        <h3>Registration Here</h3>
+
+        <label for="username">Username</label>
+        <input type="text" placeholder="username" id="username">
+        <div id="username-error" class="error-message"></div>
+
+        <label for="password">Password</label>
+        <input type="password" placeholder="password" id="password">
+        <div id="password-error" class="error-message"></div>
+
+        <button>Registration</button>
+
+        <a href="login.html">Login</a>
+    </form>
+    <script>
+        function showError(targetId, message) {
+            const errorContainer = document.getElementById(targetId);
+            const errorBox = document.createElement('div');
+            errorBox.className = 'error-box';
+            errorBox.textContent = message;
+            errorContainer.innerHTML = ''; 
+            errorContainer.appendChild(errorBox);
+        }
+
+        function hideError(targetId) {
+            const errorContainer = document.getElementById(targetId);
+            errorContainer.innerHTML = '';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const registrationForm = document.getElementById('registration-form');
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+
+            registrationForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                hideError('username-error'); 
+                hideError('password-error'); 
+
+                const username = usernameInput.value;
+                const password = passwordInput.value;
+                const errors = [];
+
+                if (username.length < 4 || username.length > 16) {
+                    errors.push('Username must be between 4 and 16 characters long');
+                    showError('username-error', 'Username must be between 4 and 16 characters long');
+                }
+
+                if (!/^[a-zA-Z0-9]+$/.test(username)) {
+                    errors.push('Username must contain only letters and numbers');
+                    showError('username-error', 'Username must contain only letters and numbers');
+                }
+
+                if (password.length < 8 || password.length > 16) {
+                    errors.push('The password must be between 8 and 16 characters');
+                    showError('password-error', 'The password must be between 8 and 16 characters');
+                }
+
+                if (errors.length > 0) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/auth/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ username, password }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.status === 201) {
+                        alert(data.message);
+                        window.location.href = data.redirect;
+                    } else {
+                        alert(data.message);
+                    }
+                } catch (error) {
+                    console.error('Помилка при відправці запиту:', error);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
