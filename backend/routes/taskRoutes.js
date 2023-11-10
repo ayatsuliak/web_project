@@ -2,14 +2,21 @@ const express = require('express')
 const router = express.Router()
 const Task = require('../models/Task')
 const uuid = require('uuid')
-const checkTaskLimit = require('../middleware/checkTaskLimit')
 const tasksController = require('../controllers/tasksController')
+const cors = require('cors');
 
-router.get('/user/:userId', async (req, res) => {
+const alowwedStatuses = ['processing', 'completed', 'failed', 'cancelled', 'waiting'];
+
+router.use(cors({
+  origin: 'http://localhost:3500',  // Replace with the actual origin of your client application
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true, // Enable credentials (cookies, authorization headers, etc.)
+}));
+
+router.get('/user/:userId', cors(), async (req, res) => {
   try {
       const userId = req.params.userId;
 
-      // Отримати всі завдання конкретного користувача
       const tasks = await Task.find({ user_id: userId });
 
       if (!tasks || tasks.length === 0) {
@@ -22,7 +29,7 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-router.delete('/user/:userId', async (req, res) => {
+router.delete('/user/:userId', cors(), async (req, res) => {
   try {
       const userId = req.params.userId;
 
@@ -38,79 +45,47 @@ router.delete('/user/:userId', async (req, res) => {
   }
 });
 
-// router.get('/tasks/:taskId', async (req, res) => {
-//   try {
-//     const taskId = req.params.taskId;
+router.patch('/:taskId/status', cors(), async (req, res) => {
+  const { taskId } = req.params;
+  const { newStatus } = req.body;
 
-//     // Знайдіть завдання за ID у базі даних
-//     const task = await Task.findById(taskId);
+  if (!alowwedStatuses.includes(newStatus)) {
+    return res.status(400).json({ message: 'Invalid status' });
+  }
 
-//     if (!task) {
-//       return res.status(404).json({ message: 'Task not found' });
-//     }
-
-//     res.status(200).json(task);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Internal server error' });
-//   }
-// });
-
-router.patch('/update-status/:taskId', async (req, res) => {
   try {
-    const taskId = req.params.taskId;
-    const newStatus = req.body.status; // Отримайте новий статус із запиту
-
-    if (newStatus === undefined) {
-      return res.status(400).json({ message: 'New status is required' });
-    }
-
-    const task = await Task.findById(taskId);
-
+    const task = await Task.findByIdAndUpdate(taskId, { status: newStatus });
     if (!task) {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    // Оновіть статус завдання
-    task.status = newStatus;
-    await task.save();
-
-    res.json({ message: 'Task status updated', task });
+    return res.status(200).json({ message: 'Status updated successfully' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 });
 
-router.post('/tasks', async (req, res) => {
+router.get('/tasks/status', cors(), async (req, res) => {
   try {
-      const number = req.body.data;
+      const tasks = await Task.find({}, { _id: 1, status: 1 });
 
-      // Генеруємо унікальний ідентифікатор для завдання
-      const taskId = uuid.v4();
-
-      // Зберігаємо taskId та завдання в базі даних
-
-      // Повертаємо клієнту створений ідентифікатор
-      res.json({ taskId, message: 'Task created successfully' });
+      res.status(200).json(tasks);
   } catch (error) {
-      console.error(error);
       res.status(500).json({ message: 'Internal server error' });
   }
 });
 
-router.post('/cancel-task/:taskId', async (req, res) => {
+
+router.post('/cancel-task/:taskId', cors(), async (req, res) => {
     try {
       const taskId = req.params.taskId;
   
-      // Видаліть запис з таблиці Task за допомогою findByIdAndDelete
       const deletedTask = await Task.findByIdAndDelete(taskId);
   
       if (!deletedTask) {
         return res.status(404).json({ message: 'Task not found' });
       }
   
-      // Повідомте клієнта про успішне видалення задачі
       res.json({ message: 'Task canceled successfully' });
     } catch (error) {
       console.error(error);
@@ -119,9 +94,9 @@ router.post('/cancel-task/:taskId', async (req, res) => {
   });
 
 router.route('/')
-    .get(tasksController.getAllTasks) //read
-    .post(checkTaskLimit, tasksController.createNewTask) //create
-    .patch(tasksController.updateTask) //update
+    .get(tasksController.getAllTasks) 
+    .post(tasksController.createNewTask) 
+    .patch(tasksController.updateTask) 
     .delete(tasksController.deleteTask)
 
 module.exports = router

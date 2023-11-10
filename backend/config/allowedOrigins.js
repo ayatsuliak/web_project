@@ -1,6 +1,6 @@
 const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:3500'
+    `http://localhost:${process.env.PORT}`,
+    `http://localhost:80`,
 ]
 
 module.exports = allowedOrigins

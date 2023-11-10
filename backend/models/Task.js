@@ -1,6 +1,6 @@
 const mongoose = require('mongoose')
 
-const alowwedStatuses = ['active', 'completed', 'failed', 'cancelled', 'waiting']
+const alowwedStatuses = ['processing', 'completed', 'failed', 'cancelled', 'waiting']
 
 const taskSchema = new mongoose.Schema({
         user_id: {

@@ -1,7 +1,10 @@
 const Task = require('../models/Task')
-const checkTaskLimit = require('../middleware/checkTaskLimit')
 const calculateHappyNumber = require('../controllers/happyNumberController')
+const jwt = require('jsonwebtoken')
 const asyncHandler = require('express-async-handler')
+
+const MAX_TASKS = 5;
+const MAX_DATA_VALUE = 100000;
 
 const getAllTasks = asyncHandler(async (req, res) => {
     try {
@@ -14,36 +17,41 @@ const getAllTasks = asyncHandler(async (req, res) => {
         res.status(200).json(tasks);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
-    }    
+    } 
 });
 
 const createNewTask = asyncHandler(async (req, res) => {
-    const { data } = req.body    
-    if (!data) {
-        return res.status(400).json({ message: 'All fields are required' })
+    const { data } = req.body;   
+    
+    if (!data || data > MAX_DATA_VALUE) {
+        return res.status(400).json({ message: `Invalid data. Data must be a positive integer not greater than ${MAX_DATA_VALUE}.` })
     }
 
-    //const token = req.headers.authorization.split(' ')[1];
+    const token = req.headers.authorization.split(' ')[1];
 
-    //const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
 
-    const user_id = req.session.userId;
+    const user_id = payload.UserInfo._id;
 
-    checkTaskLimit(req, res, async () => {
-        const answer = calculateHappyNumber(data);
-        const taskObject = { user_id, data, answer, status: 'waiting' }        
-        const task = await Task.create(taskObject)
-    
-        if (task) {
-            res.status(201).json({ message: `New task created`, data: { id: task._id, user_id, data, answer } });
-        } else {
-            res.status(400).json({ message: 'Invalid task data received' })
-        }
-    }); 
-})
+    const activeTaskCount = await Task.countDocuments({ user_id });
+
+    if (activeTaskCount >= MAX_TASKS) {
+        return res.status(400).json({ message: 'Limit of active tasks reached' });
+    }
+
+    const answer = await calculateHappyNumber(data);
+    const taskObject = { user_id, data, answer, status: 'waiting' }        
+    const task = await Task.create(taskObject)
+
+    if (task) {
+        res.status(201).json({ message: 'New task created', data: { id: task._id, user_id, data, answer } });
+    } else {
+        res.status(400).json({ message: 'Invalid task data received' });
+    }
+});
 
 const updateTask = asyncHandler(async (req, res) => {
-    const { id, data, status } = req.body; // Додали status до деструктуризації
+    const { id, data, status } = req.body; 
 
     if (!id) {
         return res.status(400).json({ message: 'Task ID is required' });
@@ -60,7 +68,7 @@ const updateTask = asyncHandler(async (req, res) => {
     }
 
     if (status) {
-        task.status = status; // Оновлення статусу
+        task.status = status; 
     }
 
     const updatedTask = await task.save();

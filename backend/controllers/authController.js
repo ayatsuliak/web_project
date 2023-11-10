@@ -41,13 +41,48 @@ exports.register = async (req, res, next) => {
       password: hash
     });
 
-    res.status(200).json({
-      message: "User created successfully",
-      user: newUser,
-      redirect: '/create-task.html' 
+    const accessToken = jwt.sign(
+      {
+        "UserInfo": {
+          "_id": newUser._id,
+          "username": newUser.username,
+        },
+      },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: `${process.env.ACCESS_TOKEN_DURATION}` }
+    );
+
+    const refreshToken = jwt.sign(
+      { "username": newUser.username, "password": newUser.password },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: `${process.env.REFRESH_TOKEN_DURATION}` }
+    );
+
+    const age = +((process.env.REFRESH_TOKEN_DURATION).slice(0, -1));  
+    
+    res.cookie('accessToken', accessToken, {
+      secure: true,
+      sameSite: 'None',
+      httpOnly: false, 
+      maxAge: age * 24 * 60 * 60 * 1000,
     });
 
-    next();
+    res.cookie('jwt', refreshToken, {
+      secure: true,
+      sameSite: 'None',
+      httpOnly: true,
+      maxAge: age * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+      message: "User created successfully",
+      user: {
+        username: newUser.username,
+        userId: newUser._id,
+      },
+      accessToken: accessToken,
+      redirect: '/create-task.html' 
+    });
   } catch (error) {
     res.status(400).json({
       message: "User was not created",
@@ -55,7 +90,6 @@ exports.register = async (req, res, next) => {
     });
   }
 };
-
 
 exports.login = async (req, res, next) => {
   const { username, password } = req.body;
@@ -114,11 +148,14 @@ exports.login = async (req, res, next) => {
         { expiresIn: `${process.env.REFRESH_TOKEN_DURATION}` }
       );
 
-      const age = +((process.env.REFRESH_TOKEN_DURATION).slice(0, -1));
-
-      console.log(req.session);
-
-      req.session.userId = foundUser._id;
+      const age = +((process.env.REFRESH_TOKEN_DURATION).slice(0, -1));  
+      
+      res.cookie('accessToken', accessToken, {
+        secure: true,
+        sameSite: 'None',
+        httpOnly: false, 
+        maxAge: age * 24 * 60 * 60 * 1000,
+      });
 
       res.cookie('jwt', refreshToken, {
         secure: true,
@@ -126,13 +163,16 @@ exports.login = async (req, res, next) => {
         httpOnly: true,
         maxAge: age * 24 * 60 * 60 * 1000,
       });
+      
       res.status(200).json({
         message: "Login successful",
-        user: foundUser,
+        user: {
+          username: foundUser.username,
+          userId: foundUser._id,
+        },
         accessToken: accessToken,
         redirect: '/create-task.html'
       });
-      next(); 
     });
   } catch (error) {
     res.status(500).json({
@@ -184,23 +224,26 @@ exports.logout = (req, res) => {
   res.status(200).json({ message: 'Cookie cleared', redirect: '/login.html' });
 };
 
-exports.getLoggedInUser = (req, res) => {
-  const userId = req.session.userId; // Передпоставляємо, що дані користувача зберігаються у сесії
+exports.getLoggedInUser = async (req, res) => {
+  try {
+    const token = req.headers.authorization.split(' ')[1];
 
-  if (userId) {
-    User.findById(userId, (err, user) => {
-      if (err) {
-        return res.status(500).json({ message: "An error occurred", error: err.message });
-      }
+    const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
 
-      if (user) {
-        return res.status(200).json({ username: user.username });
-      } else {
-        return res.status(401).json({ message: "User not found" });
-      }
-    });
-  } else {
-      res.status(401).json({ message: 'Користувач не увійшов в систему' });
+    const userId = payload.UserInfo._id;
+
+    const user = await User.findById(userId);
+
+    if (user) {
+      return res.status(200).json({
+        username: user.username,
+        id: user._id,
+      });
+    } else {
+      return res.status(401).json({ message: "User not found" });
+    }
+  } catch (error) {
+    return res.status(401).json({ message: "User not authenticated" });
   }
-};
+}
  

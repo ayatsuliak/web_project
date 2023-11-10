@@ -35,6 +35,9 @@
             max-width: 400px;
             margin: 0 auto;
         }
+        #error-message {
+            color: red;
+        }
         .task {
             border: 1px solid #ccc;
             padding: 10px;
@@ -118,53 +121,60 @@
     <div id="task-progress">
         
     </div>
+    <p id="error-message"></p>
     <script>
-        let cancelCalculation = false;
+        const token = localStorage.getItem('accessToken');
+    
         let calculationTimeout;
         const tasks = []; 
         const numberForm = document.getElementById('number-form');
         const resultMessage = document.getElementById('result');
         const createButton = document.getElementById('create-button');
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const response = await fetch('/auth/get-loggedin-user');
-                if (response.ok) {
-                    const data = await response.json();
-                    const username = data.username;
-                    document.getElementById('username').textContent = username;
+
+        const setLoggedInUser = async () => {
+            const usernameElement = document.getElementById('username');
+            if (usernameElement) {
+                try {
+                    const response = await fetch('/auth/get-logged-in-user', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                        },
+                    });
+
+                    if (response.ok) {
+                        const user = await response.json();
+                        usernameElement.textContent = user.username;
+                        userId = user.id;
+                    } else {
+                        console.error('Помилка отримання даних користувача');
+                    }
+                } catch (error) {
+                    console.error(error);
                 }
-            } catch (error) {
-                console.error('Помилка при завантаженні імені користувача:', error);
             }
-        });
+        };
 
-        numberForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const numberInput = document.getElementById('number');
-            const number = parseInt(numberInput.value);
+        setLoggedInUser();
 
-            if (cancelCalculation) {
-                resultMessage.textContent = 'Calculation cancelled';
-                clearTimeout(calculationTimeout);
-                return;
-            }
+        const errorMessage = document.getElementById('error-message');
 
-            const currentTaskId = tasks.length + 1; 
+        function createTaskElement(taskId) {
             const taskDiv = document.createElement('div');
             taskDiv.className = 'task';
-            taskDiv.id = `task-${currentTaskId}`;
+            taskDiv.id = `task-${taskId}`;
 
             const taskText = document.createElement('div');
             taskText.className = 'task-text';
-            taskText.textContent = `Task ${currentTaskId}: Waiting`;
+            taskText.textContent = `Task ${taskId}: Waiting`;
 
             const cancelButton = document.createElement('button');
             cancelButton.className = 'cancel-button';
             cancelButton.textContent = 'Cancel';
 
             cancelButton.addEventListener('click', () => {
-                cancelTask(currentTaskId);
+                cancelTask(taskId);
             });
 
             taskDiv.appendChild(taskText);
@@ -172,29 +182,87 @@
 
             document.getElementById('task-progress').appendChild(taskDiv);
 
-            const timeoutSeconds = 5;
-            taskText.textContent = `Task ${currentTaskId}: Processing...`;
-            calculationTimeout = setTimeout(async () => {
-                const response = await fetch('/tasks', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ data: number }),
-                });
+            return taskText;
+        }
 
-                if (response.ok) {  
-                    const data = await response.json();                
-                    resultMessage.textContent = data.message;
-                    taskText.textContent = `Task ${currentTaskId}: Completed, Result: ${data.data.answer}`;                    
-                } else {
-                    resultMessage.textContent = 'Error creating task';
+        numberForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const numberInput = document.getElementById('number');
+            const number = parseInt(numberInput.value);
+
+            const currentTaskId = tasks.length + 1;
+            const taskText = createTaskElement(currentTaskId);
+
+            const timeoutSeconds = 5;
+
+            const createTaskRequest = {
+                data: number,
+                userId: userId,
+            };
+
+            calculationTimeout = setTimeout(async () => {
+                taskText.textContent = `Task ${currentTaskId} Number ${number}: Processing...`;
+                try {
+                    const response = await fetch('/tasks', {
+                        method: 'POST',
+                        headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        },
+                        body: JSON.stringify(createTaskRequest),
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        resultMessage.textContent = data.message;
+                        taskText.textContent = `Task ${currentTaskId}: Completed, Number: ${number}, Result: ${data.data.answer}`;
+                        //updateTaskStatus(data.data.id, 'completed');
+                    } else {
+                        if (response.status === 400) {
+                        const errorData = await response.json();
+                        errorMessage.textContent = errorData.message;
+                        } else {
+                        errorMessage.textContent = 'Error creating task';
+                        }
+                        taskText.textContent = `Task ${currentTaskId}: Failed`;
+                        //updateTaskStatus(data.data.id, 'failed');
+                    }
+                } catch (error) {
+                    errorMessage.textContent = 'An error occurred';
                     taskText.textContent = `Task ${currentTaskId}: Failed`;
+                    //(data.data.id, 'failed');
                 }
             }, timeoutSeconds * 1000);
 
+
             tasks.push({ id: currentTaskId, timeout: calculationTimeout });
         });
+        
+
+        async function updateTaskStatus(taskId, status) {
+            try {
+                const response = await fetch(`/tasks/${taskId}/status`, { 
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ newStatus: status }), 
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const taskElement = document.getElementById(`task-${taskId}`);
+                    if (taskElement) {
+                        taskElement.textContent = `Task ${taskId}: ${status}`;
+                    }
+                } else {
+                    console.error('Помилка оновлення статусу завдання на сервері');
+                }
+            } catch (error) {
+                console.error('Помилка оновлення статусу завдання', error);
+            }
+        }
 
         function cancelTask(taskId) {
             const task = tasks.find((t) => t.id === taskId);
@@ -212,8 +280,13 @@
         logoutButton.addEventListener('click', async () => {            
             const response = await fetch('/auth/logout');
             if (response.ok) {  
-                const data = await response.json();
-                window.location.href = 'login.html';
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    window.location.href = 'login.html';
+                } else {
+                    window.location.href = 'login.html';
+                }
             }
         });
     </script>

@@ -89,7 +89,7 @@
 <body>
     <header>
         <div id="user-info">
-            <span id="username">Alex</span>
+            <span id="username"></span>
             <button id="logout-button">Logout</button>
         </div>
     </header>
@@ -103,25 +103,41 @@
     <script>
         function clearUserTasks() {
             const taskList = document.getElementById('task-list');
-            taskList.innerHTML = ''; // Очистити вміст списку завдань
+            taskList.innerHTML = ''; 
         }
 
-        async function displayUserTasks() {
-            const taskList = document.getElementById('task-list');
-            
-            //!!!!!!!!
-            const url = window.location.href; 
-            const urlParams = new URLSearchParams(url.search); 
-            
-            const user_id = '6532548b94a003bf85209cee'
+        const token = localStorage.getItem('accessToken');
+        let userId;
 
-            if (urlParams.has('userId')) {
-                const userId = urlParams.get('userId');
-            } else {
-                console.error('userId не знайдено в URL');
+        async function fetchUserTasks() {
+            const usernameElement = document.getElementById('username');
+            if (usernameElement) {
+                try {
+                    const response = await fetch('/auth/get-logged-in-user', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                        },
+                    });
+
+                    if (response.ok) {
+                        const user = await response.json();
+                        usernameElement.textContent = user.username;
+                        userId = user.id; 
+                        await displayUserTasks(userId);
+                    } else {
+                        console.error('Помилка отримання даних користувача');
+                    }
+                } catch (error) {
+                    console.error(error);
+                }
             }
+        }
 
-            const response = await fetch(`/tasks/user/${user_id}`);
+        async function displayUserTasks(userId) {
+            const taskList = document.getElementById('task-list');
+
+            const response = await fetch(`/tasks/user/${userId}`);
             if (!response.ok) {
                 console.error('Помилка отримання завдань користувача');
                 return;
@@ -138,37 +154,28 @@
             });
         }
 
-        displayUserTasks();
+        fetchUserTasks();
 
         const logoutButton = document.getElementById('logout-button');
 
-        logoutButton.addEventListener('click', async () => {
-            const response = await fetch('/auth/logout', {
-                method: 'POST',
-            });
-            if (response.ok) {
-                try {
+        logoutButton.addEventListener('click', async () => {            
+            const response = await fetch('/auth/logout');
+            if (response.ok) {  
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
                     const data = await response.json();
-                    if (data.redirect) {
-                        window.location.href = data.redirect;
-                    }
-                } catch (e) {
-                    console.error('Failed to parse response as JSON', e);
+                    window.location.href = 'login.html';
+                } else {
+                    window.location.href = 'login.html';
                 }
             }
-        });   
+        });  
         
         const deleteAllTasksButton = document.getElementById('delete-all-tasks');
         
         deleteAllTasksButton.addEventListener('click', async () => {
-            //!!!!!!!!
-            const token = req.headers.authorization.split(' ')[1];
-
-            const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-
-            const user_id = payload.UserInfo._id;
             try {
-                const response = await fetch(`/tasks/user/${user_id}`, {
+                const response = await fetch(`/tasks/user/${userId}`, {
                     method: 'DELETE'
                 });
                 
