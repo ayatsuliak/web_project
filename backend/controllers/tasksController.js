@@ -1,5 +1,6 @@
-const Task = require('../models/Task')
+const { Task } = require('../models/Task')
 const calculateHappyNumber = require('../controllers/happyNumberController')
+const { processTask } = require('../worker');
 const jwt = require('jsonwebtoken')
 const asyncHandler = require('express-async-handler')
 
@@ -35,18 +36,17 @@ const createNewTask = asyncHandler(async (req, res) => {
 
     const activeTaskCount = await Task.countDocuments({ user_id });
 
-    if (activeTaskCount >= MAX_TASKS) {
+    if (activeTaskCount > MAX_TASKS) {
         return res.status(400).json({ message: 'Limit of active tasks reached' });
     }
 
-    const answer = await calculateHappyNumber(data);
-    const taskObject = { user_id, data, answer, status: 'waiting' }        
-    const task = await Task.create(taskObject)
-
-    if (task) {
-        res.status(201).json({ message: 'New task created', data: { id: task._id, user_id, data, answer } });
-    } else {
-        res.status(400).json({ message: 'Invalid task data received' });
+    try {
+        const taskObject = { user_id, data }        
+        const task = await Task.create(taskObject);
+        res.status(201).json({ message: 'New task created', data: { id: task._id, user_id, data } });
+    } catch (error) {
+        console.error('Error creating and processing task:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
 });
 

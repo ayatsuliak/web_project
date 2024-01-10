@@ -1,19 +1,15 @@
 const express = require('express')
 const router = express.Router()
-const Task = require('../models/Task')
+const { Task, deleteCancelledTasks } = require('../models/Task')
 const uuid = require('uuid')
+const jwt = require('jsonwebtoken')
 const tasksController = require('../controllers/tasksController')
 const cors = require('cors');
 
 const alowwedStatuses = ['processing', 'completed', 'failed', 'cancelled', 'waiting'];
 
-router.use(cors({
-  origin: 'http://localhost:3500',  // Replace with the actual origin of your client application
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  credentials: true, // Enable credentials (cookies, authorization headers, etc.)
-}));
-
 router.get('/user/:userId', cors(), async (req, res) => {
+  await deleteCancelledTasks();
   try {
       const userId = req.params.userId;
 
@@ -65,33 +61,41 @@ router.patch('/:taskId/status', cors(), async (req, res) => {
   }
 });
 
-router.get('/tasks/status', cors(), async (req, res) => {
-  try {
-      const tasks = await Task.find({}, { _id: 1, status: 1 });
+router.get('/:taskId/status', cors(), async (req, res) => {
+  const { taskId } = req.params;
 
-      res.status(200).json(tasks);
+  try {
+    const task = await Task.findById(taskId);
+
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    return res.status(200).json({ status: task.status });
   } catch (error) {
-      res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 });
 
+router.get('/:taskId/answer', async (req, res) => {
+  const { taskId } = req.params;
 
-router.post('/cancel-task/:taskId', cors(), async (req, res) => {
-    try {
-      const taskId = req.params.taskId;
-  
-      const deletedTask = await Task.findByIdAndDelete(taskId);
-  
-      if (!deletedTask) {
-        return res.status(404).json({ message: 'Task not found' });
-      }
-  
-      res.json({ message: 'Task canceled successfully' });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Internal server error' });
+  try {
+    const task = await Task.findById(taskId);
+
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
     }
-  });
+
+    if (task.status !== 'completed') {
+      return res.status(400).json({ message: 'Task is not completed yet' });
+    }
+
+    return res.status(200).json({ answer: task.answer });
+  } catch (error) {
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 router.route('/')
     .get(tasksController.getAllTasks) 

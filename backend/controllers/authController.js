@@ -2,9 +2,8 @@ require("dotenv").config();
 const User = require("../models/User")
 const bcrypt = require("bcrypt")
 const jwt = require('jsonwebtoken')
-const asyncHandler = require('express-async-handler');
 
-exports.register = async (req, res, next) => {
+exports.register = async (req, res) => {
   const { username, password } = req.body  
 
   const errors = [];
@@ -52,28 +51,6 @@ exports.register = async (req, res, next) => {
       { expiresIn: `${process.env.ACCESS_TOKEN_DURATION}` }
     );
 
-    const refreshToken = jwt.sign(
-      { "username": newUser.username, "password": newUser.password },
-      process.env.REFRESH_TOKEN_SECRET,
-      { expiresIn: `${process.env.REFRESH_TOKEN_DURATION}` }
-    );
-
-    const age = +((process.env.REFRESH_TOKEN_DURATION).slice(0, -1));  
-    
-    res.cookie('accessToken', accessToken, {
-      secure: true,
-      sameSite: 'None',
-      httpOnly: false, 
-      maxAge: age * 24 * 60 * 60 * 1000,
-    });
-
-    res.cookie('jwt', refreshToken, {
-      secure: true,
-      sameSite: 'None',
-      httpOnly: true,
-      maxAge: age * 24 * 60 * 60 * 1000,
-    });
-
     res.status(200).json({
       message: "User created successfully",
       user: {
@@ -91,7 +68,7 @@ exports.register = async (req, res, next) => {
   }
 };
 
-exports.login = async (req, res, next) => {
+exports.login = async (req, res) => {
   const { username, password } = req.body;
 
   const errors = [];
@@ -141,28 +118,6 @@ exports.login = async (req, res, next) => {
         process.env.ACCESS_TOKEN_SECRET,
         { expiresIn: `${process.env.ACCESS_TOKEN_DURATION}` }
       );
-
-      const refreshToken = jwt.sign(
-        { "username": foundUser.username, "password": foundUser.password },
-        process.env.REFRESH_TOKEN_SECRET,
-        { expiresIn: `${process.env.REFRESH_TOKEN_DURATION}` }
-      );
-
-      const age = +((process.env.REFRESH_TOKEN_DURATION).slice(0, -1));  
-      
-      res.cookie('accessToken', accessToken, {
-        secure: true,
-        sameSite: 'None',
-        httpOnly: false, 
-        maxAge: age * 24 * 60 * 60 * 1000,
-      });
-
-      res.cookie('jwt', refreshToken, {
-        secure: true,
-        sameSite: 'None',
-        httpOnly: true,
-        maxAge: age * 24 * 60 * 60 * 1000,
-      });
       
       res.status(200).json({
         message: "Login successful",
@@ -182,46 +137,8 @@ exports.login = async (req, res, next) => {
   }
 };
 
-exports.refresh = (req, res) => {
-  const cookies = req.cookies
-
-  if (!cookies?.jwt) return res.status(401).json({ message: 'Unauthorized' })
-
-  const refreshToken = cookies.jwt
-
-  jwt.verify(
-    refreshToken,
-    process.env.REFRESH_TOKEN_SECRET,
-    asyncHandler(async (err, decoded) => {
-      if (err) return res.status(403).json({ message: 'Forbidden' })
-    
-      const foundUser = await User.findOne({ username: decoded.username }).exec()
-
-      if (!foundUser) return res.status(401).json({ message: 'Unauthorized' })
-
-      const accessToken = jwt.sign(
-        {
-          "UserInfo": {
-            "_id": foundUser._id,
-            "username": foundUser.username,
-            "password": foundUser.password
-          }
-        },
-        process.env.ACCESS_TOKEN_SECRET,
-        { expiresIn: `${process.env.ACCESS_TOKEN_DURATION}`}
-      )
-
-      res.json({ accessToken })
-    })
-  )
-}
-
 exports.logout = (req, res) => {
-  const cookies = req.cookies;
-  if (!cookies?.jwt) return res.status(204).json({ message: 'No cookie to clear' });
-
-  res.clearCookie('jwt', { httpOnly: true, sameSite: 'None', secure: true });
-  res.status(200).json({ message: 'Cookie cleared', redirect: '/login.html' });
+  res.status(200).json({ message: 'Logout successful', redirect: '/login.html' });
 };
 
 exports.getLoggedInUser = async (req, res) => {

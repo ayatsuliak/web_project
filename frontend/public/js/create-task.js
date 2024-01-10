@@ -1,11 +1,11 @@
 const token = localStorage.getItem('accessToken');
-
-let cancelCalculation = false;
+    
 let calculationTimeout;
 const tasks = []; 
 const numberForm = document.getElementById('number-form');
 const resultMessage = document.getElementById('result');
 const createButton = document.getElementById('create-button');
+
 
 const setLoggedInUser = async () => {
     const usernameElement = document.getElementById('username');
@@ -48,8 +48,11 @@ function createTaskElement(taskId) {
     cancelButton.className = 'cancel-button';
     cancelButton.textContent = 'Cancel';
 
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
     cancelButton.addEventListener('click', () => {
-        cancelTask(taskId);
+        cancelTask(taskId, abortController);
     });
 
     taskDiv.appendChild(taskText);
@@ -57,71 +60,83 @@ function createTaskElement(taskId) {
 
     document.getElementById('task-progress').appendChild(taskDiv);
 
-    return taskText;
+    return { taskText, signal, abortController };
 }
 
 numberForm.addEventListener('submit', async (event) => {
+    errorMessage.textContent = '';
     event.preventDefault();
     const numberInput = document.getElementById('number');
     const number = parseInt(numberInput.value);
 
-    if (cancelCalculation) {
-        resultMessage.textContent = 'Calculation cancelled';
-        clearTimeout(calculationTimeout);
-        return;
-    }
-
     const currentTaskId = tasks.length + 1;
-    const taskText = createTaskElement(currentTaskId);
+    const { taskText, signal, abortController } = createTaskElement(currentTaskId);
 
     const timeoutSeconds = 5;
 
     const createTaskRequest = {
         data: number,
-        userId: userId,
     };
 
     calculationTimeout = setTimeout(async () => {
-        taskText.textContent = `Task ${currentTaskId}: Processing...`;
+        taskText.textContent = `Task ${currentTaskId} Number ${number}: Processing...`;
         try {
             const response = await fetch('/tasks', {
                 method: 'POST',
                 headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify(createTaskRequest),
+                signal: signal,
             });
 
             if (response.ok) {
                 const data = await response.json();
                 resultMessage.textContent = data.message;
-                taskText.textContent = `Task ${currentTaskId}: Completed, Result: ${data.data.answer}`;
-                //updateTaskStatus(serverPort, data.data.id, 'completed');
+                taskText.textContent = `Task ${currentTaskId}: Completed, Number: ${number}, Result: ${data.data.answer}`;
+                updateTaskStatus(data.data.id, 'completed');
             } else {
                 if (response.status === 400) {
-                const errorData = await response.json();
-                errorMessage.textContent = errorData.message;
+                    const errorData = await response.json();
+                    errorMessage.textContent = errorData.message;
                 } else {
-                errorMessage.textContent = 'Error creating task';
+                    errorMessage.textContent = 'Error creating task';
                 }
+
+                cancelTask(currentTaskId, abortController);
                 taskText.textContent = `Task ${currentTaskId}: Failed`;
-                //updateTaskStatus(serverPort, data.data.id, 'failed');
             }
         } catch (error) {
-            errorMessage.textContent = 'An error occurred';
-            taskText.textContent = `Task ${currentTaskId}: Failed`;
-            //(serverPort, data.data.id, 'failed');
+            if (error.name === 'AbortError') {                        
+                console.log('Запит скасовано');
+            } else {
+                errorMessage.textContent = 'An error occurred';
+                taskText.textContent = `Task ${currentTaskId}: Failed`;
+            }
         }
     }, timeoutSeconds * 1000);
 
-    tasks.push({ id: currentTaskId, timeout: calculationTimeout });
+    tasks.push({ id: currentTaskId, timeout: calculationTimeout, abortController: abortController });
 });
 
+function cancelTask(taskId, abortController) {
+    const task = tasks.find((t) => t.id === taskId);
+    if (task) {
+        if (abortController) {
+            abortController.abort(); 
+        }
+        clearTimeout(task.timeout);
+        const taskDiv = document.getElementById(`task-${taskId}`);
+        if (taskDiv) {
+            taskDiv.remove();
+        }
+    }
+}        
 
-async function updateTaskStatus(serverPort, taskId, status) {
+async function updateTaskStatus(taskId, status) {
     try {
-        const response = await fetch(`http://localhost:${serverPort}/tasks/${taskId}/status`, { 
+        const response = await fetch(`/tasks/${taskId}/status`, { 
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -132,26 +147,11 @@ async function updateTaskStatus(serverPort, taskId, status) {
 
         if (response.ok) {
             const data = await response.json();
-            const taskElement = document.getElementById(`task-${taskId}`);
-            if (taskElement) {
-                taskElement.textContent = `Task ${taskId}: ${status}`;
-            }
         } else {
             console.error('Помилка оновлення статусу завдання на сервері');
         }
     } catch (error) {
         console.error('Помилка оновлення статусу завдання', error);
-    }
-}
-
-function cancelTask(taskId) {
-    const task = tasks.find((t) => t.id === taskId);
-    if (task) {
-        clearTimeout(task.timeout);
-        const taskDiv = document.getElementById(`task-${taskId}`);
-        if (taskDiv) {
-            taskDiv.remove();
-        }
     }
 }
 

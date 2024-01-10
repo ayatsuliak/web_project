@@ -1,4 +1,4 @@
-const DELAY = 2000;
+const DELAY = 3000;
 
 function getSumOfSquares(number) {
     let sum = 0;

@@ -31,4 +31,13 @@ const taskSchema = new mongoose.Schema({
     }
 )
 
-module.exports = mongoose.model('Task', taskSchema)
+const Task = mongoose.model('Task', taskSchema)
+
+async function deleteCancelledTasks() {
+  await Task.deleteMany({status: 'cancelled'})
+}
+
+module.exports = {
+  Task,
+  deleteCancelledTasks
+}
